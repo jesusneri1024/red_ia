@@ -125,7 +125,30 @@ class Nodo:
     async def _loop(self):
         while True:
             await asyncio.sleep(30)
+            await self._reconectar_si_necesario()
             await self._iniciar_ronda()
+
+    async def _reconectar_si_necesario(self):
+        """Si no hay peers conectados, vuelve a consultar el seed."""
+        # Limpiar peers desconectados
+        desconectados = [nid for nid, p in self.peers.items() if p.writer.is_closing()]
+        for nid in desconectados:
+            del self.peers[nid]
+            logger.info(f"Peer removido (desconectado): {nid[:8]}")
+
+        if not self.peers and self.peers_iniciales:
+            logger.info("Sin peers — reconectando al seed...")
+            for h, p in self.peers_iniciales:
+                peers_descubiertos = await self._conectar_seed(h, p)
+                if peers_descubiertos:
+                    for pd in peers_descubiertos:
+                        peer = await conectar(pd["host"], pd["port"], self._on_message)
+                        if peer:
+                            await self._saludar(peer)
+                else:
+                    peer = await conectar(h, p, self._on_message)
+                    if peer:
+                        await self._saludar(peer)
 
     # ------------------------------------------------------------------
     # Conexión
