@@ -20,12 +20,15 @@ MODELO = "llama3.2"
 
 def correr_modelo(prompt: str) -> str:
     """Corre Llama con temperatura 0 — resultado determinista."""
-    respuesta = ollama.chat(
-        model=MODELO,
-        messages=[{"role": "user", "content": prompt}],
-        options={"temperature": 0, "seed": 42},
-    )
-    return respuesta["message"]["content"].strip()
+    try:
+        respuesta = ollama.chat(
+            model=MODELO,
+            messages=[{"role": "user", "content": prompt}],
+            options={"temperature": 0, "seed": 42},
+        )
+        return respuesta["message"]["content"].strip()
+    except Exception:
+        return ""
 
 
 def hacer_commitment(respuesta: str) -> tuple[str, str]:

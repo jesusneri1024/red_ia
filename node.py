@@ -25,7 +25,7 @@ PUNTOS_ARBITRO            = 1   # Por evaluar una conversación
 
 
 class Nodo:
-    def __init__(self, host: str, port: int, peers_iniciales: list[tuple[str, int]] = None):
+    def __init__(self, host: str, port: int, peers_iniciales: list[tuple[str, int]] = None, coordinator_only: bool = False):
         self.host = host
         self.port = port
         self.peers_iniciales = peers_iniciales or []
@@ -61,6 +61,7 @@ class Nodo:
         self._nonce_local:        str | None = None
         self._commitment_local:   str | None = None
 
+        self.coordinator_only = coordinator_only
         self._servidor = Servidor(host, port, self._on_message)
 
     # ------------------------------------------------------------------
@@ -180,7 +181,8 @@ class Nodo:
             self._vrfs_recibidos[msg["node_id"]] = msg["vrf"]
 
         elif tipo == "PROMPT_REQ":
-            asyncio.create_task(self._procesar_prompt(peer, msg))
+            if not self.coordinator_only:
+                asyncio.create_task(self._procesar_prompt(peer, msg))
 
         elif tipo == "REVEAL_REQUEST":
             asyncio.create_task(self._revelar_respuesta(peer, msg["prompt_id"]))

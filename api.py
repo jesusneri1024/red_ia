@@ -200,10 +200,10 @@ def _formatear_mensajes(mensajes: list[Mensaje]) -> str:
 # Arranque
 # ------------------------------------------------------------------
 
-async def arrancar_api(node_port: int, node_peers: list[tuple], api_port: int):
+async def arrancar_api(node_port: int, node_peers: list[tuple], api_port: int, coordinator_only: bool = False):
     global nodo
 
-    nodo = Nodo(host="localhost", port=node_port, peers_iniciales=node_peers)
+    nodo = Nodo(host="localhost", port=node_port, peers_iniciales=node_peers, coordinator_only=coordinator_only)
     await nodo._servidor.iniciar()
 
     # Conectar a peers
@@ -253,14 +253,15 @@ def parsear_peers(peers_str: str) -> list[tuple[str, int]]:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="API Gateway compatible con OpenAI")
-    parser.add_argument("--api-port",  type=int, default=8000, help="Puerto HTTP de la API")
-    parser.add_argument("--node-port", type=int, default=7099, help="Puerto P2P del nodo gateway")
-    parser.add_argument("--peers",     default="",             help="Peers: host:port,host:port")
+    parser.add_argument("--api-port",         type=int, default=8000)
+    parser.add_argument("--node-port",        type=int, default=7099)
+    parser.add_argument("--peers",            default="")
+    parser.add_argument("--coordinator-only", action="store_true", help="No procesar prompts localmente")
     args = parser.parse_args()
 
     peers = parsear_peers(args.peers)
 
     try:
-        asyncio.run(arrancar_api(args.node_port, peers, args.api_port))
+        asyncio.run(arrancar_api(args.node_port, peers, args.api_port, args.coordinator_only))
     except KeyboardInterrupt:
         print("\nAPI detenida.")

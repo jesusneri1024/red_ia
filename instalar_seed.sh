@@ -35,16 +35,16 @@ else
   cd red_ia
 fi
 
-# Solo necesitamos seed.py — sin Ollama, sin modelo
+# Instalar dependencias Python (sin Ollama)
 echo "→ Configurando entorno..."
 python3 -m venv venv
 source venv/bin/activate
 pip install --quiet --upgrade pip
+pip install --quiet fastapi uvicorn aiofiles
 
-# Crear servicio systemd para que corra siempre
-echo "→ Configurando servicio del sistema..."
 WORKING_DIR="$(pwd)"
 
+# Servicio: seed node (peer discovery)
 cat > /tmp/red-ia-seed.service << EOF
 [Unit]
 Description=Red IA Seed Node
@@ -61,30 +61,49 @@ RestartSec=10
 WantedBy=multi-user.target
 EOF
 
-sudo mv /tmp/red-ia-seed.service /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable red-ia-seed
-sudo systemctl start red-ia-seed
+# Servicio: API gateway coordinador (sin Ollama)
+cat > /tmp/red-ia-api.service << EOF
+[Unit]
+Description=Red IA API Gateway
+After=network.target red-ia-seed.service
 
-# Abrir puerto en firewall si ufw está activo
+[Service]
+Type=simple
+WorkingDirectory=$WORKING_DIR
+ExecStart=$WORKING_DIR/venv/bin/python3 api.py --api-port 8080 --node-port 7099 --peers localhost:7000 --coordinator-only
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+sudo mv /tmp/red-ia-seed.service /etc/systemd/system/
+sudo mv /tmp/red-ia-api.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable red-ia-seed red-ia-api
+sudo systemctl start red-ia-seed red-ia-api
+
+# Abrir puertos en firewall
 if command -v ufw &>/dev/null; then
   sudo ufw allow 7000/tcp
-  echo -e "${VERDE}→ Puerto 7000 abierto en firewall${NC}"
+  sudo ufw allow 8080/tcp
+  echo -e "${VERDE}→ Puertos 7000 y 8080 abiertos en firewall${NC}"
 fi
 
 IP_PUBLICA=$(curl -s ifconfig.me 2>/dev/null || echo "IP_DE_TU_VPS")
 
 echo ""
 echo -e "${VERDE}╔══════════════════════════════════════════════╗${NC}"
-echo -e "${VERDE}║   ✓ Seed node instalado y corriendo          ║${NC}"
+echo -e "${VERDE}║   ✓ Seed + API Gateway instalados            ║${NC}"
 echo -e "${VERDE}╚══════════════════════════════════════════════╝${NC}"
 echo ""
-echo -e "  IP pública: ${AZUL}$IP_PUBLICA${NC}"
-echo -e "  Puerto:     ${AZUL}7000${NC}"
+echo -e "  IP pública:   ${AZUL}$IP_PUBLICA${NC}"
+echo -e "  Seed:         ${AZUL}$IP_PUBLICA:7000${NC}"
+echo -e "  Landing+Chat: ${AZUL}http://$IP_PUBLICA:8080${NC}"
 echo ""
-echo -e "  Agrega esto al config.json de todos los nodos:"
-echo -e "  ${AZUL}\"bootstrap_nodes\": [\"$IP_PUBLICA:7000\"]${NC}"
+echo -e "  El chat funciona cuando haya nodos conectados a la red."
 echo ""
-echo -e "  Ver estado: sudo systemctl status red-ia-seed"
-echo -e "  Ver logs:   sudo journalctl -u red-ia-seed -f"
+echo -e "  Ver estado: sudo systemctl status red-ia-api"
+echo -e "  Ver logs:   sudo journalctl -u red-ia-api -f"
 echo ""
