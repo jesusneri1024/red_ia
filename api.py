@@ -222,7 +222,7 @@ async def arrancar_api(node_port: int, node_peers: list[tuple], api_port: int, c
                 continue
         else:
             public_host = "localhost"
-            logger.warning("No se pudo detectar IP pública, usando localhost")
+            print("WARNING: No se pudo detectar IP pública, usando localhost")
 
     nodo = Nodo(host="0.0.0.0", port=node_port, peers_iniciales=node_peers, coordinator_only=coordinator_only, public_host=public_host)
     await nodo._servidor.iniciar()
