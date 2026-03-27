@@ -3,7 +3,7 @@
     "nombre": "red-ia",
     "version": "0.1.0",
     "bootstrap_nodes": [
-      "localhost:7000"
+      "146.190.120.75:7000"
     ]
   },
   "nodo": {
