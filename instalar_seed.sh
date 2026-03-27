@@ -20,6 +20,7 @@ echo -e "${NC}"
 # Python
 echo "→ Verificando Python..."
 python3 --version || { apt-get update && apt-get install -y python3 python3-pip python3-venv; }
+apt-get install -y python3-venv 2>/dev/null || true
 
 # Clonar/actualizar código
 if [ -d "red_ia" ]; then
