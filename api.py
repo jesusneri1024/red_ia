@@ -205,24 +205,29 @@ async def arrancar_api(node_port: int, node_peers: list[tuple], api_port: int, c
 
     # Auto-detectar IP pública si no se especifica
     if not public_host:
+        import socket
         import urllib.request
-        fuentes = [
-            "http://169.254.169.254/metadata/v1/interfaces/public/0/ipv4/address",  # DigitalOcean
-            "http://ifconfig.me",
-            "http://api4.ipify.org",
-            "http://ipv4.icanhazip.com",
-        ]
-        for url in fuentes:
-            try:
-                public_host = urllib.request.urlopen(url, timeout=3).read().decode().strip()
-                if public_host and not public_host.startswith("<"):
-                    logger.info(f"IP pública detectada: {public_host} ({url})")
-                    break
-            except Exception:
-                continue
-        else:
-            public_host = "localhost"
-            print("WARNING: No se pudo detectar IP pública, usando localhost")
+        # Primero intentar con socket (funciona en VPS con IP directa en interfaz)
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.connect(("8.8.8.8", 80))
+            public_host = s.getsockname()[0]
+            s.close()
+        except Exception:
+            public_host = None
+        # Si es IP privada, intentar servicios externos
+        _privadas = ("127.", "10.", "192.168.", "172.")
+        if not public_host or any(public_host.startswith(p) for p in _privadas):
+            for url in ["http://api4.ipify.org", "http://ifconfig.me", "http://ipv4.icanhazip.com"]:
+                try:
+                    public_host = urllib.request.urlopen(url, timeout=3).read().decode().strip()
+                    if public_host and not public_host.startswith("<"):
+                        break
+                except Exception:
+                    continue
+            else:
+                public_host = "localhost"
+        print(f"INFO: IP pública detectada: {public_host}")
 
     nodo = Nodo(host="0.0.0.0", port=node_port, peers_iniciales=node_peers, coordinator_only=coordinator_only, public_host=public_host)
     await nodo._servidor.iniciar()
