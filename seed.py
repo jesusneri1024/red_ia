@@ -71,6 +71,11 @@ class SeedNode:
             nodo_host = msg.get("host", addr[0])
             nodo_port = msg.get("port", 7000)
 
+            # Si el nodo se anuncia como localhost/privado, usar la IP real de la conexión
+            _privadas = ("localhost", "127.0.0.1", "::1", "0.0.0.0")
+            if nodo_host in _privadas or nodo_host.startswith("192.168.") or nodo_host.startswith("10."):
+                nodo_host = addr[0]
+
             # Registrar el nodo
             self.peers[node_id] = {
                 "host":      nodo_host,
