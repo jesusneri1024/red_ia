@@ -22,9 +22,12 @@ import argparse
 import asyncio
 import time
 import uuid
+from pathlib import Path
 import uvicorn
 from fastapi import FastAPI, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from typing import Optional
 
@@ -76,6 +79,15 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Servir landing page
+_static = Path(__file__).parent / "static"
+if _static.exists():
+    app.mount("/static", StaticFiles(directory=_static), name="static")
+
+@app.get("/")
+async def landing():
+    return FileResponse(_static / "index.html")
 
 # ------------------------------------------------------------------
 # Endpoints
