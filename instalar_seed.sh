@@ -17,10 +17,13 @@ echo "║     Red IA — Instalador Seed Node (VPS)      ║"
 echo "╚══════════════════════════════════════════════╝"
 echo -e "${NC}"
 
-# Python
+# Python + venv
 echo "→ Verificando Python..."
-python3 --version || { apt-get update && apt-get install -y python3 python3-pip python3-venv; }
-apt-get install -y python3-venv 2>/dev/null || true
+apt-get update -qq
+apt-get install -y python3 python3-pip git
+PYTHON_VER=$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
+apt-get install -y python${PYTHON_VER}-venv || apt-get install -y python3-venv
+python3 --version
 
 # Clonar/actualizar código
 if [ -d "red_ia" ]; then
