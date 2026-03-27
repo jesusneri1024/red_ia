@@ -89,9 +89,17 @@ async def main():
         await nodo._servidor.iniciar()
         from network import conectar
         for h, p in peers:
-            peer = await conectar(h, p, nodo._on_message)
-            if peer:
-                await nodo._saludar(peer)
+            # Intentar como seed primero para descubrir peers reales
+            peers_descubiertos = await nodo._conectar_seed(h, p)
+            if peers_descubiertos:
+                for pd in peers_descubiertos:
+                    peer = await conectar(pd["host"], pd["port"], nodo._on_message)
+                    if peer:
+                        await nodo._saludar(peer)
+            else:
+                peer = await conectar(h, p, nodo._on_message)
+                if peer:
+                    await nodo._saludar(peer)
 
         await asyncio.sleep(1)
         print(f"\nEnviando prompt a la red...\n")
