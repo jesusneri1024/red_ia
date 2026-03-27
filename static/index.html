@@ -635,7 +635,7 @@
       const r = await fetch(`${API}/v1/network/status`);
       if (!r.ok) return;
       const d = await r.json();
-      document.getElementById('stat-nodes').textContent = Object.keys(d.peers || {}).length;
+      document.getElementById('stat-nodes').textContent = (d.peers || []).length + 1; // +1 incluye el nodo coordinador
       document.getElementById('stat-round').textContent = d.ronda ?? '—';
       document.getElementById('stat-pool').textContent = d.pool?.total ?? '—';
     } catch {}
