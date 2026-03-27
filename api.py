@@ -205,12 +205,24 @@ async def arrancar_api(node_port: int, node_peers: list[tuple], api_port: int, c
 
     # Auto-detectar IP pública si no se especifica
     if not public_host:
-        try:
-            import urllib.request
-            public_host = urllib.request.urlopen("https://ifconfig.me", timeout=5).read().decode().strip()
-            logger.info(f"IP pública detectada: {public_host}")
-        except Exception:
+        import urllib.request
+        fuentes = [
+            "http://169.254.169.254/metadata/v1/interfaces/public/0/ipv4/address",  # DigitalOcean
+            "http://ifconfig.me",
+            "http://api4.ipify.org",
+            "http://ipv4.icanhazip.com",
+        ]
+        for url in fuentes:
+            try:
+                public_host = urllib.request.urlopen(url, timeout=3).read().decode().strip()
+                if public_host and not public_host.startswith("<"):
+                    logger.info(f"IP pública detectada: {public_host} ({url})")
+                    break
+            except Exception:
+                continue
+        else:
             public_host = "localhost"
+            logger.warning("No se pudo detectar IP pública, usando localhost")
 
     nodo = Nodo(host="0.0.0.0", port=node_port, peers_iniciales=node_peers, coordinator_only=coordinator_only, public_host=public_host)
     await nodo._servidor.iniciar()
