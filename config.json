@@ -1,0 +1,19 @@
+{
+  "red": {
+    "nombre": "red-ia",
+    "version": "0.1.0",
+    "bootstrap_nodes": [
+      "localhost:7000"
+    ]
+  },
+  "nodo": {
+    "host": "0.0.0.0",
+    "port": 7000,
+    "api_port": 8080
+  },
+  "modelo": {
+    "nombre": "llama3.2",
+    "temperatura": 0,
+    "seed": 42
+  }
+}
