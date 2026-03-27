@@ -42,11 +42,12 @@ def parsear_peers(peers_str: str) -> list[tuple[str, int]]:
 
 async def main():
     parser = argparse.ArgumentParser(description="Nodo de la red IA descentralizada")
-    parser.add_argument("--host",   default="localhost")
-    parser.add_argument("--port",   type=int, required=True)
-    parser.add_argument("--peers",  default="")
-    parser.add_argument("--prompt", default="")
-    parser.add_argument("--status", action="store_true", help="Ver identidad y puntos")
+    parser.add_argument("--host",        default="0.0.0.0")
+    parser.add_argument("--port",        type=int, required=True)
+    parser.add_argument("--peers",       default="")
+    parser.add_argument("--prompt",      default="")
+    parser.add_argument("--status",      action="store_true")
+    parser.add_argument("--public-host", default="", help="IP pública para anunciarse (auto-detecta si no se especifica)")
     args = parser.parse_args()
 
     peers = parsear_peers(args.peers)
@@ -82,7 +83,16 @@ async def main():
 """)
         return
 
-    nodo = Nodo(host=args.host, port=args.port, peers_iniciales=peers)
+    # Auto-detectar IP pública para anunciarse correctamente
+    public_host = args.public_host
+    if not public_host:
+        try:
+            import urllib.request
+            public_host = urllib.request.urlopen("https://ifconfig.me", timeout=5).read().decode().strip()
+        except Exception:
+            public_host = args.host
+
+    nodo = Nodo(host=args.host, port=args.port, peers_iniciales=peers, public_host=public_host)
 
     # Modo prompt: conecta, manda el prompt, imprime resultado y sale
     if args.prompt:

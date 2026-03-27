@@ -200,10 +200,19 @@ def _formatear_mensajes(mensajes: list[Mensaje]) -> str:
 # Arranque
 # ------------------------------------------------------------------
 
-async def arrancar_api(node_port: int, node_peers: list[tuple], api_port: int, coordinator_only: bool = False):
+async def arrancar_api(node_port: int, node_peers: list[tuple], api_port: int, coordinator_only: bool = False, public_host: str = None):
     global nodo
 
-    nodo = Nodo(host="localhost", port=node_port, peers_iniciales=node_peers, coordinator_only=coordinator_only)
+    # Auto-detectar IP pública si no se especifica
+    if not public_host:
+        try:
+            import urllib.request
+            public_host = urllib.request.urlopen("https://ifconfig.me", timeout=5).read().decode().strip()
+            logger.info(f"IP pública detectada: {public_host}")
+        except Exception:
+            public_host = "localhost"
+
+    nodo = Nodo(host="0.0.0.0", port=node_port, peers_iniciales=node_peers, coordinator_only=coordinator_only, public_host=public_host)
     await nodo._servidor.iniciar()
 
     # Conectar a peers
@@ -256,12 +265,13 @@ if __name__ == "__main__":
     parser.add_argument("--api-port",         type=int, default=8000)
     parser.add_argument("--node-port",        type=int, default=7099)
     parser.add_argument("--peers",            default="")
-    parser.add_argument("--coordinator-only", action="store_true", help="No procesar prompts localmente")
+    parser.add_argument("--coordinator-only", action="store_true")
+    parser.add_argument("--public-host",      default="", help="IP pública del nodo (auto-detecta si no se especifica)")
     args = parser.parse_args()
 
     peers = parsear_peers(args.peers)
 
     try:
-        asyncio.run(arrancar_api(args.node_port, peers, args.api_port, args.coordinator_only))
+        asyncio.run(arrancar_api(args.node_port, peers, args.api_port, args.coordinator_only, args.public_host or None))
     except KeyboardInterrupt:
         print("\nAPI detenida.")

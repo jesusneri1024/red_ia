@@ -25,9 +25,10 @@ PUNTOS_ARBITRO            = 1   # Por evaluar una conversación
 
 
 class Nodo:
-    def __init__(self, host: str, port: int, peers_iniciales: list[tuple[str, int]] = None, coordinator_only: bool = False):
+    def __init__(self, host: str, port: int, peers_iniciales: list[tuple[str, int]] = None, coordinator_only: bool = False, public_host: str = None):
         self.host = host
         self.port = port
+        self.public_host = public_host or host  # IP pública para anunciarse a otros nodos
         self.peers_iniciales = peers_iniciales or []
 
         # Identidad persistente
@@ -101,7 +102,7 @@ class Nodo:
             msg = json.dumps({
                 "type":    "HELLO",
                 "node_id": self.node_id,
-                "host":    self.host,
+                "host":    self.public_host,
                 "port":    self.port,
             }) + "\n"
             writer.write(msg.encode())
@@ -134,7 +135,7 @@ class Nodo:
         await peer.enviar({
             "type":    "HELLO",
             "node_id": self.node_id,
-            "host":    self.host,
+            "host":    self.public_host,
             "port":    self.port,
         })
 
