@@ -64,6 +64,9 @@ class Nodo:
         # Estado como TRABAJADOR (por prompt_id)
         self._trabajos: dict[str, dict] = {}  # {prompt_id: {respuesta, nonce, commitment}}
 
+        # Semáforo — Ollama procesa un prompt a la vez
+        self._inference_sem = asyncio.Semaphore(1)
+
         self._vrfs_recibidos: dict[str, str] = {}
 
         self.coordinator_only = coordinator_only
@@ -263,8 +266,9 @@ class Nodo:
         prompt_id = msg["prompt_id"]
         logger.info(f"Procesando prompt {prompt_id[:8]}...")
 
-        loop = asyncio.get_event_loop()
-        respuesta = await loop.run_in_executor(None, inference.correr_modelo, msg["prompt"])
+        async with self._inference_sem:
+            loop = asyncio.get_event_loop()
+            respuesta = await loop.run_in_executor(None, inference.correr_modelo, msg["prompt"])
 
         commitment, nonce = inference.hacer_commitment(respuesta)
         self._trabajos[prompt_id] = {
