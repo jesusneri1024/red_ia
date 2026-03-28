@@ -6,7 +6,6 @@ import hashlib
 import hmac
 import json
 import logging
-import random
 import uuid
 from pathlib import Path
 
@@ -311,6 +310,28 @@ class Nodo:
     # Coordinador: gestionar rondas concurrentes
     # ------------------------------------------------------------------
 
+    def _elegir_workers_vrf(self, prompt_id: str, n: int) -> list:
+        """
+        Selecciona workers de forma determinista usando VRF.
+        Cada peer recibe un score = HMAC(vrf_del_peer, prompt_id).
+        Los n peers con score más bajo son elegidos.
+        Cualquier nodo puede verificar esta selección independientemente.
+        """
+        peers = list(self.peers.values())
+        if not peers:
+            return []
+
+        def score(peer):
+            vrf = self._vrfs_recibidos.get(peer.node_id, peer.node_id)
+            return hmac.new(
+                vrf.encode(),
+                prompt_id.encode(),
+                hashlib.sha256,
+            ).hexdigest()
+
+        peers_ordenados = sorted(peers, key=score)
+        return peers_ordenados[:n]
+
     async def coordinar_prompt(self, prompt: str) -> str | None:
         if not self.peers:
             logger.warning("Sin peers conectados.")
@@ -326,7 +347,7 @@ class Nodo:
 
         prompt_id = uuid.uuid4().hex
         n = min(3, len(self.peers))
-        workers = random.sample(list(self.peers.values()), n)
+        workers = self._elegir_workers_vrf(prompt_id, n)
 
         ronda = Ronda(prompt_id, prompt, workers)
         self._rondas[prompt_id] = ronda
