@@ -9,6 +9,8 @@ from typing import Callable
 
 logger = logging.getLogger(__name__)
 
+MAX_MESSAGE_SIZE = 1 * 1024 * 1024  # 1MB máximo por mensaje
+
 
 class Peer:
     """Representa una conexión activa con otro nodo."""
@@ -27,6 +29,13 @@ class Peer:
 
     def cerrar(self):
         self.writer.close()
+
+
+def _parsear_mensaje(linea: bytes) -> dict | None:
+    """Parsea una línea JSON con validación de tamaño."""
+    if len(linea) > MAX_MESSAGE_SIZE:
+        raise ValueError(f"Mensaje demasiado grande: {len(linea)} bytes")
+    return json.loads(linea.decode().strip())
 
 
 class Servidor:
@@ -55,8 +64,11 @@ class Servidor:
                 linea = await reader.readline()
                 if not linea:
                     break
-                msg = json.loads(linea.decode().strip())
-                # El node_id se actualiza cuando llega el HELLO
+                try:
+                    msg = _parsear_mensaje(linea)
+                except ValueError as e:
+                    logger.warning(f"Mensaje rechazado de {peer.address}: {e}")
+                    break
                 if msg.get("type") == "HELLO":
                     peer.node_id = msg.get("node_id", peer.node_id)
                 await self.on_message(peer, msg)
@@ -84,7 +96,11 @@ async def conectar(host: str, port: int, on_message: Callable) -> Peer | None:
                     linea = await reader.readline()
                     if not linea:
                         break
-                    msg = json.loads(linea.decode().strip())
+                    try:
+                        msg = _parsear_mensaje(linea)
+                    except ValueError as e:
+                        logger.warning(f"Mensaje rechazado de {peer.address}: {e}")
+                        break
                     if msg.get("type") == "HELLO":
                         peer.node_id = msg.get("node_id", peer.node_id)
                     await on_message(peer, msg)

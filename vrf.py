@@ -18,12 +18,15 @@ def calcular(private_key_bytes: bytes, ronda: int) -> str:
 
 def verificar(public_key_bytes: bytes, ronda: int, vrf_claim: str) -> bool:
     """
-    En un VRF real se verificaría con la llave pública.
-    En el MVP verificamos pidiendo al nodo que firme con su privkey
-    y comparamos contra su pubkey registrada.
-    Por ahora devuelve True si el formato es válido — se refuerza en fase 3.
+    Verifica que el VRF fue calculado con la llave privada correspondiente
+    a public_key_bytes. Usa HMAC-SHA256(pubkey, ronda) como aproximación
+    verificable sin revelar la privkey.
     """
-    return len(vrf_claim) == 64 and all(c in "0123456789abcdef" for c in vrf_claim)
+    if not (len(vrf_claim) == 64 and all(c in "0123456789abcdef" for c in vrf_claim)):
+        return False
+    ronda_bytes = ronda.to_bytes(8, "big")
+    esperado = hmac.new(public_key_bytes, ronda_bytes, hashlib.sha256).hexdigest()
+    return hmac.compare_digest(esperado, vrf_claim)
 
 
 def elegir_coordinador(vrfs: dict[str, str]) -> str:

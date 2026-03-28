@@ -20,11 +20,12 @@ Luego en el código del developer:
 """
 import argparse
 import asyncio
+import collections
 import time
 import uuid
 from pathlib import Path
 import uvicorn
-from fastapi import FastAPI, HTTPException, Header
+from fastapi import FastAPI, HTTPException, Header, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -32,6 +33,29 @@ from pydantic import BaseModel
 from typing import Optional
 
 from node import Nodo
+
+# ------------------------------------------------------------------
+# Rate limiting — ventana deslizante por IP
+# ------------------------------------------------------------------
+
+RATE_LIMIT_REQUESTS = 20   # máximo requests por ventana
+RATE_LIMIT_WINDOW   = 60   # ventana en segundos
+
+_rate_buckets: dict[str, collections.deque] = {}
+
+def _check_rate_limit(ip: str) -> bool:
+    """Retorna True si el request está permitido, False si excede el límite."""
+    ahora = time.time()
+    if ip not in _rate_buckets:
+        _rate_buckets[ip] = collections.deque()
+    bucket = _rate_buckets[ip]
+    # Limpiar timestamps fuera de la ventana
+    while bucket and bucket[0] < ahora - RATE_LIMIT_WINDOW:
+        bucket.popleft()
+    if len(bucket) >= RATE_LIMIT_REQUESTS:
+        return False
+    bucket.append(ahora)
+    return True
 
 # ------------------------------------------------------------------
 # Modelos de datos (formato OpenAI)
@@ -112,6 +136,7 @@ async def listar_modelos():
 @app.post("/v1/chat/completions", response_model=ChatResponse)
 async def chat_completions(
     request: ChatRequest,
+    http_request: Request,
     authorization: Optional[str] = Header(None),
 ):
     """
@@ -120,6 +145,13 @@ async def chat_completions(
     """
     if nodo is None:
         raise HTTPException(status_code=503, detail="Nodo no inicializado")
+
+    ip = http_request.client.host
+    if not _check_rate_limit(ip):
+        raise HTTPException(
+            status_code=429,
+            detail=f"Rate limit excedido: máximo {RATE_LIMIT_REQUESTS} requests por {RATE_LIMIT_WINDOW}s"
+        )
 
     # Formatear mensajes como prompt para el modelo
     prompt = _formatear_mensajes(request.messages)

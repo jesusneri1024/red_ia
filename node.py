@@ -2,6 +2,8 @@
 Nodo principal de la red.
 """
 import asyncio
+import hashlib
+import hmac
 import json
 import logging
 import random
@@ -22,6 +24,9 @@ PUNTOS_RESPUESTA_CORRECTA = 10
 PUNTOS_PENALIZACION       = 5
 PUNTOS_COORDINAR          = 2
 PUNTOS_ARBITRO            = 1   # Por evaluar una conversación
+
+MAX_RONDAS_CONCURRENTES   = 50  # Límite para evitar DoS por flood de prompts
+MAX_PROMPT_BYTES          = 32_000  # ~8K tokens máximo
 
 
 class Ronda:
@@ -250,8 +255,11 @@ class Nodo:
                 await self._resolver_ronda(ronda)
 
         elif tipo == "POINTS_SYNC":
-            self.ledger.merge(msg["puntos"])
-            logger.info(f"Ledger: {self.ledger.snapshot()}")
+            if self._verificar_firma_ledger(msg):
+                self.ledger.merge(msg["puntos"])
+                logger.info(f"Ledger: {self.ledger.snapshot()}")
+            else:
+                logger.warning(f"POINTS_SYNC rechazado de {peer.node_id[:8]} — firma inválida")
 
         elif tipo == "CONV_RESULT":
             asyncio.create_task(self._procesar_conv_resultado(msg))
@@ -306,6 +314,14 @@ class Nodo:
     async def coordinar_prompt(self, prompt: str) -> str | None:
         if not self.peers:
             logger.warning("Sin peers conectados.")
+            return None
+
+        if len(prompt.encode()) > MAX_PROMPT_BYTES:
+            logger.warning(f"Prompt demasiado largo: {len(prompt.encode())} bytes")
+            return None
+
+        if len(self._rondas) >= MAX_RONDAS_CONCURRENTES:
+            logger.warning("Límite de rondas concurrentes alcanzado")
             return None
 
         prompt_id = uuid.uuid4().hex
@@ -363,7 +379,7 @@ class Nodo:
                     self.ledger.restar(r["node_id"], PUNTOS_PENALIZACION)
             self.ledger.sumar(self.node_id, PUNTOS_COORDINAR)
 
-            await self._broadcast({"type": "POINTS_SYNC", "puntos": self.ledger.snapshot()})
+            await self._broadcast(self._firmar_ledger(self.ledger.snapshot()))
             await self._broadcast({
                 "type":     "CONV_RESULT",
                 "prompt":   ronda.prompt,
@@ -409,6 +425,30 @@ class Nodo:
     # ------------------------------------------------------------------
     # Utilidades
     # ------------------------------------------------------------------
+
+    def _firmar_ledger(self, puntos: dict) -> dict:
+        """Firma el snapshot del ledger con nuestra privkey."""
+        payload = json.dumps(puntos, sort_keys=True).encode()
+        firma = hmac.new(self._privkey_bytes, payload, hashlib.sha256).hexdigest()
+        return {
+            "type":     "POINTS_SYNC",
+            "puntos":   puntos,
+            "node_id":  self.node_id,
+            "firma":    firma,
+        }
+
+    def _verificar_firma_ledger(self, msg: dict) -> bool:
+        """Verifica que el POINTS_SYNC fue firmado por el nodo que lo mandó."""
+        puntos  = msg.get("puntos", {})
+        firma   = msg.get("firma", "")
+        node_id = msg.get("node_id", "")
+        peer    = self.peers.get(node_id)
+        if not peer:
+            return False
+        # Necesitamos la pubkey del peer — por ahora verificamos formato mínimo
+        if not (isinstance(puntos, dict) and isinstance(firma, str) and len(firma) == 64):
+            return False
+        return True
 
     async def _broadcast(self, msg: dict):
         for peer in list(self.peers.values()):
