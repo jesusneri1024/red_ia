@@ -418,6 +418,68 @@
       font-family: system-ui, -apple-system, sans-serif;
     }
 
+    /* MODEL HISTORY */
+    .timeline { position: relative; padding-left: 2rem; }
+    .timeline::before {
+      content: '';
+      position: absolute;
+      left: 0; top: 0; bottom: 0;
+      width: 2px;
+      background: linear-gradient(to bottom, var(--accent), var(--accent2));
+    }
+    .timeline-entry {
+      position: relative;
+      margin-bottom: 1.5rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.2rem 1.4rem;
+    }
+    .timeline-entry::before {
+      content: '';
+      position: absolute;
+      left: -2.45rem;
+      top: 1.2rem;
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      background: var(--accent);
+      border: 2px solid var(--bg);
+    }
+    .timeline-entry .te-version {
+      font-size: .75rem;
+      color: var(--accent2);
+      margin-bottom: .3rem;
+    }
+    .timeline-entry .te-desc {
+      font-size: .9rem;
+      color: var(--text);
+      font-family: system-ui, -apple-system, sans-serif;
+      margin-bottom: .5rem;
+    }
+    .timeline-entry .te-meta {
+      display: flex; gap: 1.2rem; flex-wrap: wrap;
+      font-size: .75rem; color: var(--muted);
+      font-family: system-ui, -apple-system, sans-serif;
+    }
+    .timeline-entry .te-hash {
+      font-size: .65rem;
+      color: var(--muted);
+      margin-top: .5rem;
+      word-break: break-all;
+    }
+    .badge-tipo {
+      display: inline-block;
+      padding: .1rem .5rem;
+      border-radius: 4px;
+      font-size: .7rem;
+      font-family: system-ui, -apple-system, sans-serif;
+    }
+    .badge-genesis   { background: #1e3a5f; color: var(--accent2); }
+    .badge-fine-tune { background: #2d1b69; color: #a78bfa; }
+    .badge-base-update { background: #1a3a2a; color: var(--green); }
+    .integrity-ok  { color: var(--green); font-size: .8rem; }
+    .integrity-err { color: var(--red);   font-size: .8rem; }
+
     /* FOOTER */
     footer {
       border-top: 1px solid var(--border);
@@ -620,6 +682,16 @@
   </div>
 </section>
 
+<!-- MODEL HISTORY -->
+<section class="token-section" id="model-history">
+  <h2>Model Evolution</h2>
+  <p>Every change to the model is recorded on-chain. Immutable, public, verifiable by any node.</p>
+  <p id="integrity-status" style="margin-top:.5rem;margin-bottom:1.2rem;"></p>
+  <div class="timeline" id="timeline">
+    <div style="color:var(--muted);font-size:.85rem;">Loading history...</div>
+  </div>
+</section>
+
 <footer>
   <p>Red IA — Decentralized AI Network &nbsp;·&nbsp; <a href="https://github.com/jesusneri1024/red_ia" target="_blank">GitHub</a> &nbsp;·&nbsp; v0.1.0 testnet</p>
 </footer>
@@ -642,6 +714,44 @@
   }
   loadStats();
   setInterval(loadStats, 10000);
+
+  // Load model history
+  async function loadModelHistory() {
+    try {
+      const r = await fetch(`${API}/v1/model/history`);
+      if (!r.ok) return;
+      const d = await r.json();
+
+      const statusEl = document.getElementById('integrity-status');
+      statusEl.innerHTML = d.integro
+        ? '<span class="integrity-ok">✓ Chain integrity verified</span>'
+        : '<span class="integrity-err">⚠ Integrity check failed</span>';
+
+      const timeline = document.getElementById('timeline');
+      if (!d.historial || d.historial.length === 0) {
+        timeline.innerHTML = '<div style="color:var(--muted);font-size:.85rem;">No history yet.</div>';
+        return;
+      }
+
+      const badgeClass = { genesis: 'badge-genesis', 'fine-tune': 'badge-fine-tune', 'base-update': 'badge-base-update' };
+
+      timeline.innerHTML = [...d.historial].reverse().map(e => {
+        const fecha = new Date(e.timestamp).toLocaleDateString('en-US', { year:'numeric', month:'short', day:'numeric' });
+        const badge = `<span class="badge-tipo ${badgeClass[e.tipo] || 'badge-genesis'}">${e.tipo}</span>`;
+        const convs = e.conversaciones > 0 ? `<span>${e.conversaciones.toLocaleString()} conversations</span>` : '';
+        const score = e.score_promedio != null ? `<span>avg score ${e.score_promedio.toFixed(2)}</span>` : '';
+        const nodos = e.nodos_participantes > 0 ? `<span>${e.nodos_participantes} nodes</span>` : '';
+        return `
+          <div class="timeline-entry">
+            <div class="te-version">${badge} &nbsp; v${e.version} &nbsp;·&nbsp; ${fecha}</div>
+            <div class="te-desc">${e.descripcion}</div>
+            <div class="te-meta">${[convs, score, nodos].filter(Boolean).join('')}</div>
+            <div class="te-hash">SHA256: ${e.hash}</div>
+          </div>`;
+      }).join('');
+    } catch {}
+  }
+  loadModelHistory();
 
   function autoResize(el) {
     el.style.height = 'auto';

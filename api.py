@@ -33,6 +33,7 @@ from pydantic import BaseModel
 from typing import Optional
 
 from node import Nodo
+from model_registry import ModelRegistry
 
 # ------------------------------------------------------------------
 # Rate limiting — ventana deslizante por IP
@@ -94,8 +95,9 @@ class ChatResponse(BaseModel):
 # App
 # ------------------------------------------------------------------
 
-app  = FastAPI(title="Red IA — API compatible con OpenAI", version="0.1.0")
-nodo: Nodo = None  # Se inicializa al arrancar
+app      = FastAPI(title="Red IA — API compatible con OpenAI", version="0.1.0")
+nodo:     Nodo          = None  # Se inicializa al arrancar
+registry: ModelRegistry = ModelRegistry()
 
 app.add_middleware(
     CORSMiddleware,
@@ -185,6 +187,16 @@ async def chat_completions(
             total_tokens=prompt_tokens + completion_tokens,
         ),
     )
+
+
+@app.get("/v1/model/history")
+async def model_history():
+    """Historial público de versiones del modelo — encadenado y verificable."""
+    return {
+        "historial":   registry.historial(),
+        "version":     registry.ultima_version().get("version"),
+        "integro":     registry.verificar_integridad(),
+    }
 
 
 @app.get("/v1/network/status")
